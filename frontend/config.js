@@ -17,7 +17,7 @@ export const GRADER_SOURCE_URL = new URL("../backend/src/grader/grader.py", impo
 export const BRIDGE_SOURCE_URL = new URL("./js/worker_bridge.py", import.meta.url).href;
 
 // OAuth client ID from the Google Cloud setup guide in README.md (public by design).
-export const GOOGLE_CLIENT_ID = "";
+export const GOOGLE_CLIENT_ID = "1089930709224-7jblcnq9cmbo6itmbduf1795kdaabgpa.apps.googleusercontent.com";
 
 export const DEFAULTS = Object.freeze({
   maxWorkers: 4,
