@@ -23,7 +23,8 @@ or invalid file. Scores are never changed automatically; you decide.
 | `fixtures.tar.gz.enc` | Test fixtures (real autograder zip with hidden tests, fake submissions, Otter's results), **encrypted**. Decrypts to `fixtures/` (gitignored), shared by both test suites. | `scripts/fixtures.sh` |
 | `index.html` | Redirects the Pages root to `frontend/`. | |
 | `scripts/fixtures.sh` | Encrypts / decrypts the fixtures. | `openssl` |
-| `.github/workflows/test.yml` | Runs both test suites on every push and pull request. | GitHub Actions |
+| `.github/workflows/test.yml` | Runs both test suites on every push and pull request; deploys `main` to Pages when they pass. | GitHub Actions |
+| `scripts/collect-site.sh` | Copies the site's files into the folder that gets published. | |
 
 There is no server: "backend" is the grading engine, which the browser fetches from
 `backend/src/grader/grader.py` and runs in a worker.
@@ -61,8 +62,11 @@ GitHub Actions runs both suites on every push and pull request (`.github/workflo
 
 ## Deploying
 
-Merge a feature branch into `main` through a pull request; GitHub Pages republishes `main`
-within a minute or two (Settings → Pages, see the setup guide below). There is no build step.
+Merge a feature branch into `main` through a pull request. The **Test and deploy** workflow then
+runs both test suites and, only if they pass, publishes the site with GitHub Actions. There is no
+build step: `scripts/collect-site.sh` just copies the 15 files the site needs (no tests, no
+fixtures) into the published folder. You can also redeploy from **Actions → Test and deploy →
+Run workflow**.
 Before the first deploy, add the repository secret **`FIXTURES_PASSWORD`** (Settings → Secrets
 and variables → Actions) so the test workflow can decrypt the fixtures.
 
@@ -93,8 +97,8 @@ no server and no client secret.
    branch and merge it into `main` with a pull request.
    The client ID is public by design; there is no secret to protect.
 6. Turn on GitHub Pages: in the repository, **Settings → Pages → Build and deployment →
-   Deploy from a branch**, branch `main`, folder `/ (root)`. The site appears at
-   `https://omaramir2001.github.io/<repository-name>/`.
+   Source: GitHub Actions**. The next passing run on `main` publishes the site at
+   `https://omaramir2001.github.io/grader/`.
 
 The site asks for read-only access to Drive, keeps the sign-in token only in the open tab, and
 never sends it anywhere except Google's own APIs.
