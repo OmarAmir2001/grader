@@ -1,0 +1,59 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Decrypt fixtures
+        env:
+          FIXTURES_PASSWORD: ${{ secrets.FIXTURES_PASSWORD }}
+        run: scripts/fixtures.sh decrypt
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          working-directory: backend
+          enable-cache: true
+
+      - name: Grader matches Otter's results (acceptance test 1)
+        working-directory: backend
+        run: uv run pytest
+
+  frontend:
+    name: Frontend (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Decrypt fixtures
+        env:
+          FIXTURES_PASSWORD: ${{ secrets.FIXTURES_PASSWORD }}
+        run: scripts/fixtures.sh decrypt
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install test tools
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Browser tests (acceptance test 2 + Drive and flags)
+        working-directory: frontend
+        run: npm run test:e2e
+
+      # No report/trace upload on purpose: traces and screenshots show hidden-test code, and
+      # artifacts of a public repo are downloadable by anyone. Re-run failures locally instead.
