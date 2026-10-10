@@ -53,10 +53,19 @@ function fakeDrive(notebooks) {
   return { children, bytesById };
 }
 
+const CLIENT_ID_LINE = /export const GOOGLE_CLIENT_ID = "[^"]*";/;
+
+/** Serve config.js with the given client ID, whatever ID is committed in the real file. */
+async function serveConfigWithClientId(page, clientId) {
+  const config = await readFile(CONFIG_PATH, "utf8");
+  if (!CLIENT_ID_LINE.test(config)) throw new Error("GOOGLE_CLIENT_ID line not found in config.js");
+  const body = config.replace(CLIENT_ID_LINE, `export const GOOGLE_CLIENT_ID = "${clientId}";`);
+  await page.route("**/frontend/config.js", (route) => route.fulfill({ contentType: "text/javascript", body }));
+}
+
 test.beforeEach(async ({ page }) => {
   // Turn Drive on with a fake client ID, without touching config.js on disk.
-  const config = (await readFile(CONFIG_PATH, "utf8")).replace('GOOGLE_CLIENT_ID = ""', `GOOGLE_CLIENT_ID = "${FAKE_CLIENT_ID}"`);
-  await page.route("**/frontend/config.js", (route) => route.fulfill({ contentType: "text/javascript", body: config }));
+  await serveConfigWithClientId(page, FAKE_CLIENT_ID);
   await page.route("https://accounts.google.com/gsi/client", (route) => route.fulfill({ contentType: "text/javascript", body: FAKE_GIS }));
   // Record everything the page sends to its workers, to prove the token never reaches them.
   await page.addInitScript(() => {
@@ -149,6 +158,7 @@ test("loads a Forms upload folder from Drive and grades it", async ({ page }) =>
 
 test("without a client ID, the Drive tab explains the setup and the zip tab is the default", async ({ page }) => {
   await page.unroute("**/frontend/config.js");
+  await serveConfigWithClientId(page, "");
   await openGrader(page);
   await expect(page.locator("#tab-zip")).toHaveAttribute("aria-selected", "true");
   await page.click("#tab-drive");

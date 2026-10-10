@@ -19,7 +19,7 @@ jobs:
           FIXTURES_PASSWORD: ${{ secrets.FIXTURES_PASSWORD }}
         run: scripts/fixtures.sh decrypt
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.0  # this action publishes exact versions only (no moving v10 tag)
         with:
           working-directory: backend
           enable-cache: true
