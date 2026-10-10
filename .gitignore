@@ -1,0 +1,28 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.pytest_cache/
+
+# Virtual environments
+.venv
+
+# Node / Playwright
+node_modules/
+test-results/
+playwright-report/
+
+# Windows download metadata (WSL)
+*:Zone.Identifier
+
+# Secrets (FIXTURES_PASSWORD lives here locally; in CI it is a repository secret)
+.env
+
+# Hidden tests and correct solutions must never be committed in plain form.
+# Only the encrypted archive fixtures.tar.gz.enc is tracked; see scripts/fixtures.sh.
+/fixtures/
+/notebook-grader-handoff/
+*.zip
