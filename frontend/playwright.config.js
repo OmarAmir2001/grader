@@ -14,6 +14,7 @@ export default defineConfig({
   timeout: 6 * 60_000, // first run downloads Pyodide + pandas into each worker
   expect: { timeout: 10_000 },
   fullyParallel: false,
+  workers: 1, // each test starts several Pyodide workers; in parallel they compete for CPU and trip the 15 s timeout
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {

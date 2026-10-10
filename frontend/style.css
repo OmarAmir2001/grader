@@ -227,3 +227,16 @@ dialog::backdrop { background: rgb(0 0 0 / 0.45); }
   .card { padding: 16px; }
   .settings-grid { grid-template-columns: 1fr; }
 }
+
+.field-label { display: block; font-weight: 600; margin: 14px 0 6px; }
+.folder-row { display: flex; gap: 8px; }
+.folder-row input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+}

@@ -47,7 +47,24 @@
         <button type="button" role="tab" id="tab-zip" data-tab="zip" aria-controls="panel-zip">From a zip file</button>
       </div>
       <div id="panel-drive" role="tabpanel" aria-labelledby="tab-drive" hidden>
-        <p class="hint">Loading straight from Google Drive is coming in the next update. For now, use “From a zip file”.</p>
+        <p id="drive-not-configured" class="warning" hidden>
+          Google sign-in isn't set up yet. Follow “Google Cloud setup” in the README, then paste the client ID into
+          <code>frontend/config.js</code>. Until then, use “From a zip file”.
+        </p>
+        <div id="drive-ui" hidden>
+          <div class="actions">
+            <button type="button" id="drive-signin">Sign in with Google</button>
+            <span id="drive-account" class="hint"></span>
+            <button type="button" id="drive-signout" hidden>Sign out</button>
+          </div>
+          <label for="drive-folder" class="field-label">Google Drive folder link</label>
+          <div class="folder-row">
+            <input type="text" id="drive-folder" class="lock-while-grading" inputmode="url" autocomplete="off" spellcheck="false"
+                   placeholder="https://drive.google.com/drive/folders/…">
+            <button type="button" id="drive-load" class="primary lock-while-grading">Load</button>
+          </div>
+          <p class="hint">Paste the link of the folder where the Google Form saves the uploads. The form's main folder or the question's folder both work.</p>
+        </div>
       </div>
       <div id="panel-zip" role="tabpanel" aria-labelledby="tab-zip" hidden>
         <p class="hint">In Google Drive, right-click the folder with the form uploads and choose <strong>Download</strong>. Then drop that zip here.</p>
@@ -58,6 +75,7 @@
       </div>
       <p id="subs-status" class="hint" role="status" hidden></p>
       <p id="subs-error" class="error" role="alert" hidden></p>
+      <p id="subs-warning" class="warning" role="alert" hidden></p>
       <div id="subs-summary" hidden>
         <p id="subs-count" class="summary-line"></p>
         <details class="file-list">

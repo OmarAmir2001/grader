@@ -1,6 +1,7 @@
 // Page flow: answer key -> submissions -> grade -> results. All data stays in this tab.
 import { DEFAULTS, SETTINGS_LIMITS } from "../config.js";
 import { $, el, formatBytes, formatPoints, plural, show } from "./dom.js";
+import { DriveError, GoogleDrive, isDriveConfigured, parseFolderId } from "./drive.js";
 import { Phase, WorkerPool } from "./pool.js";
 import { ResultsTable, renderDetails } from "./results.js";
 import { readSubmissionsZip } from "./submissions.js";
@@ -44,6 +45,7 @@ function saveSettings() {
 
 const settings = loadSettings();
 const pool = new WorkerPool({ size: settings.workers });
+const drive = new GoogleDrive(); // holds the Google token; never shared with the workers
 const state = {
   pythonReady: false,
   summary: null, // answer key summary from grader.py
@@ -174,27 +176,88 @@ function selectTab(name) {
   }
 }
 
-async function onSubmissionsZip(file) {
+function clearSubmissions() {
   showMessage($("#subs-error"), "");
+  showMessage($("#subs-warning"), "");
   show($("#subs-summary"), false);
   state.submissions = [];
   resetResults();
   updateGradeButton();
-  showMessage($("#subs-status"), `Reading ${file.name}…`);
+}
+
+/** Shared by both sources: load(status) resolves with {notebooks, skipped, warning?}. */
+async function loadSubmissions(load) {
+  clearSubmissions();
   try {
-    const { notebooks, skipped } = await readSubmissionsZip(file);
-    if (!notebooks.length) {
-      showMessage($("#subs-error"), "No .ipynb files found in this zip.");
-      return;
-    }
+    const { notebooks, skipped, warning = "" } = await load((text) => showMessage($("#subs-status"), text));
     state.submissions = notebooks;
     renderSubmissions(skipped);
+    showMessage($("#subs-warning"), warning);
   } catch (error) {
+    if (!(error instanceof DriveError)) console.error(error);
     showMessage($("#subs-error"), error.message);
   } finally {
     showMessage($("#subs-status"), "");
     updateGradeButton();
   }
+}
+
+function onSubmissionsZip(file) {
+  return loadSubmissions(async (status) => {
+    status(`Reading ${file.name}…`);
+    const { notebooks, skipped } = await readSubmissionsZip(file);
+    if (!notebooks.length) throw new Error("No .ipynb files found in this zip.");
+    return { notebooks, skipped };
+  });
+}
+
+function onDriveLoad() {
+  const folderId = parseFolderId($("#drive-folder").value);
+  if (!folderId) {
+    clearSubmissions();
+    showMessage($("#subs-error"), "That doesn't look like a Google Drive folder link. Open the folder in Drive and copy the link from the address bar.");
+    return;
+  }
+  const signedIn = drive.signIn(); // before any await, so the browser allows Google's popup
+  return loadSubmissions(async (status) => {
+    status("Signing in to Google…");
+    await signedIn;
+    updateDriveAccount();
+    status("Looking for notebooks in the folder…");
+    const listed = await drive.listNotebooks(folderId, (found) => status(`Looking for notebooks… found ${found}`));
+    if (!listed.notebooks.length) throw new DriveError("No .ipynb files found in this folder or its subfolders.");
+    const { downloaded, failed } = await drive.download(listed.notebooks, (done, total) => status(`Downloading ${done} of ${total}…`));
+    if (!downloaded.length) throw new DriveError("None of the notebooks could be downloaded. Try again in a minute.");
+    const warning = failed.length
+      ? `${plural(failed.length, "file")} couldn't be downloaded and won't be graded: ${failed.join(", ")}`
+      : "";
+    return { notebooks: downloaded, skipped: listed.skipped, warning };
+  });
+}
+
+function updateDriveAccount() {
+  $("#drive-account").textContent = drive.signedIn ? "Signed in to Google." : "";
+  show($("#drive-signin"), !drive.signedIn);
+  show($("#drive-signout"), drive.signedIn);
+}
+
+function setUpDrive() {
+  const configured = isDriveConfigured();
+  show($("#drive-not-configured"), !configured);
+  show($("#drive-ui"), configured);
+  if (!configured) return;
+  drive.prepare().catch((error) => showMessage($("#subs-error"), error.message));
+  $("#drive-signin").addEventListener("click", () => {
+    drive.signIn().then(updateDriveAccount, (error) => showMessage($("#subs-error"), error.message));
+  });
+  $("#drive-signout").addEventListener("click", () => {
+    drive.signOut();
+    updateDriveAccount();
+  });
+  $("#drive-load").addEventListener("click", onDriveLoad);
+  $("#drive-folder").addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !state.grading) onDriveLoad();
+  });
 }
 
 function renderSubmissions(skipped) {
@@ -326,7 +389,8 @@ async function downloadCsv() {
 bindDropzone($("#key-drop"), $("#key-input"), onAnswerKey);
 bindDropzone($("#subs-drop"), $("#subs-input"), onSubmissionsZip);
 for (const tab of document.querySelectorAll("[role=tab]")) tab.addEventListener("click", () => selectTab(tab.dataset.tab));
-selectTab("zip"); // Google Drive arrives in M3; then it becomes the default tab
+setUpDrive();
+selectTab(isDriveConfigured() ? "drive" : "zip");
 bindSettings();
 $("#grade-btn").addEventListener("click", grade);
 $("#csv-btn").addEventListener("click", downloadCsv);
