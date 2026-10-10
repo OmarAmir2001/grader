@@ -1,0 +1,31 @@
+[project]
+name = "grader"
+version = "0.1.0"
+description = "Grades Otter-Grader notebook assignments; the same grading code runs in CPython and in the browser (Pyodide)."
+readme = "README.md"
+authors = [
+    { name = "OmarAmir2001", email = "omaramir2001@gmail.com" }
+]
+requires-python = ">=3.13"
+# Keep in sync with what js/worker.js loads into Pyodide (see config.js).
+dependencies = [
+    "numpy>=2.2",
+    "pandas>=2.2",
+    "pyyaml>=6.0",
+    "structlog>=25.1",
+]
+
+[project.scripts]
+grader = "grader.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

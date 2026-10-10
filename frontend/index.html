@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Notebook Grader</title>
+  <meta name="description" content="Grade Jupyter notebook homework in your browser. Student files never leave this computer.">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="page-header">
+    <div>
+      <h1>Notebook Grader</h1>
+      <p class="hint">Grades your students' Jupyter notebooks right here in the browser. Student files never leave this computer.</p>
+    </div>
+    <span id="python-status" class="pill pill-loading" role="status">Getting Python ready…</span>
+  </header>
+
+  <main>
+    <!-- Step 1 -->
+    <section class="card" aria-labelledby="step1-title">
+      <h2 id="step1-title"><span class="step">1</span> Answer key</h2>
+      <p class="hint">Choose the autograder zip that <code>otter assign</code> made, for example <code>section1-autograder.zip</code>. It stays on this computer.</p>
+      <label class="dropzone" id="key-drop">
+        <input type="file" id="key-input" class="lock-while-grading" accept=".zip,application/zip">
+        <span>Drop the answer key zip here, or <u>choose a file</u></span>
+      </label>
+      <p id="key-status" class="hint" role="status" hidden></p>
+      <p id="key-error" class="error" role="alert" hidden></p>
+      <div id="key-summary" hidden>
+        <p class="summary-line"><strong id="key-name"></strong> · <span id="key-total"></span></p>
+        <table id="key-questions" class="compact">
+          <thead><tr><th scope="col">Question</th><th scope="col" class="num">Points</th><th scope="col">Tests</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p>Data files: <span id="key-files"></span></p>
+        <p id="key-warnings" class="warning" role="alert" hidden></p>
+      </div>
+    </section>
+
+    <!-- Step 2 -->
+    <section class="card" aria-labelledby="step2-title">
+      <h2 id="step2-title"><span class="step">2</span> Submissions</h2>
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-drive" data-tab="drive" aria-controls="panel-drive">From Google Drive</button>
+        <button type="button" role="tab" id="tab-zip" data-tab="zip" aria-controls="panel-zip">From a zip file</button>
+      </div>
+      <div id="panel-drive" role="tabpanel" aria-labelledby="tab-drive" hidden>
+        <p class="hint">Loading straight from Google Drive is coming in the next update. For now, use “From a zip file”.</p>
+      </div>
+      <div id="panel-zip" role="tabpanel" aria-labelledby="tab-zip" hidden>
+        <p class="hint">In Google Drive, right-click the folder with the form uploads and choose <strong>Download</strong>. Then drop that zip here.</p>
+        <label class="dropzone" id="subs-drop">
+          <input type="file" id="subs-input" class="lock-while-grading" accept=".zip,application/zip">
+          <span>Drop the submissions zip here, or <u>choose a file</u></span>
+        </label>
+      </div>
+      <p id="subs-status" class="hint" role="status" hidden></p>
+      <p id="subs-error" class="error" role="alert" hidden></p>
+      <div id="subs-summary" hidden>
+        <p id="subs-count" class="summary-line"></p>
+        <details class="file-list">
+          <summary>Show the files</summary>
+          <div class="table-scroll">
+            <table id="subs-table" class="compact">
+              <thead><tr><th scope="col">File</th><th scope="col" class="num">Size</th><th scope="col">Date</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </details>
+        <details id="subs-skipped" class="file-list" hidden>
+          <summary></summary>
+          <ul></ul>
+        </details>
+      </div>
+    </section>
+
+    <!-- Step 3 -->
+    <section class="card" aria-labelledby="step3-title">
+      <h2 id="step3-title"><span class="step">3</span> Grade</h2>
+      <details id="settings">
+        <summary>Settings</summary>
+        <div class="settings-grid">
+          <label for="set-workers">Notebooks graded at the same time</label>
+          <input type="number" id="set-workers" class="lock-while-grading" step="1">
+          <label for="set-timeout">Time limit per notebook (seconds)</label>
+          <input type="number" id="set-timeout" class="lock-while-grading" step="1">
+        </div>
+        <p class="hint">A notebook that runs longer than the time limit is stopped and gets 0. More notebooks at the same time is faster but uses more memory.</p>
+      </details>
+      <div class="actions">
+        <button type="button" id="grade-btn" class="primary" disabled>Grade</button>
+        <span id="grade-hint" class="hint"></span>
+      </div>
+      <div id="progress" aria-live="polite" hidden>
+        <progress id="progress-bar" value="0" max="1"></progress>
+        <span id="progress-text"></span>
+      </div>
+      <p id="grade-error" class="error" role="alert" hidden></p>
+    </section>
+
+    <!-- Results -->
+    <section id="results" class="card" aria-labelledby="results-title" hidden>
+      <div class="results-header">
+        <h2 id="results-title">Results</h2>
+        <button type="button" id="csv-btn" disabled>Download CSV</button>
+      </div>
+      <p class="hint">Click a row to see its details. Highlighted rows need a look. Click a column title to sort.</p>
+      <div class="table-scroll">
+        <table id="results-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="details" aria-labelledby="details-title">
+    <div class="dialog-header">
+      <h2 id="details-title"></h2>
+      <button type="button" id="details-close" aria-label="Close">✕</button>
+    </div>
+    <div id="details-body"></div>
+  </dialog>
+</body>
+</html>

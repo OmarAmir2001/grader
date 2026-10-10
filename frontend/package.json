@@ -1,0 +1,13 @@
+{
+  "name": "notebook-grader-frontend",
+  "private": true,
+  "type": "module",
+  "description": "Static site; npm is used only for the Playwright browser tests. The site itself has no build step.",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "jszip": "3.10.1"
+  }
+}
