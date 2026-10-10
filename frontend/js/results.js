@@ -206,3 +206,52 @@ export function renderDetails(container, row, summary) {
   }
   container.replaceChildren(...parts);
 }
+
+/** Notebooks whose code actually ran; timed-out and invalid files would only drag every average to 0. */
+const ranToCompletion = (row) => row.result && (row.result.status === Status.OK || row.result.status === Status.CRASHED);
+
+/** Per-question average and share of full marks, so Omar sees which questions the class struggled with. */
+export function questionSummary(rows, questions) {
+  const results = rows.filter(ranToCompletion).map((row) => row.result);
+  return {
+    count: results.length,
+    questions: questions.map((question) => {
+      const scores = results.map((result) => result.scores[question.name] ?? 0);
+      const fullMarks = scores.filter((score) => score >= question.points - 1e-9).length;
+      return {
+        name: question.name,
+        points: question.points,
+        average: scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0,
+        fullMarks,
+        fullMarksShare: scores.length ? fullMarks / scores.length : 0,
+      };
+    }),
+  };
+}
+
+export function renderQuestionSummary(section, rows, questions) {
+  const { count, questions: stats } = questionSummary(rows, questions);
+  section.hidden = count === 0;
+  if (!count) return;
+  const left = rows.filter((row) => row.result && !ranToCompletion(row)).length;
+  section.querySelector("#summary-note").textContent =
+    `Based on ${plural(count, "notebook")} that ran.` +
+    (left ? ` ${plural(left, "file")} that timed out or weren't valid ${left === 1 ? "is" : "are"} left out.` : "");
+  section.querySelector("tbody").replaceChildren(
+    ...stats.map((stat) => {
+      const percent = Math.round(stat.fullMarksShare * 100);
+      return el("tr", { dataset: { question: stat.name } },
+        el("th", { scope: "row" }, stat.name),
+        el("td", { class: "num" }, formatPoints(stat.points)),
+        el("td", { class: "num", dataset: { col: "average" } }, `${formatPoints(stat.average)} / ${formatPoints(stat.points)}`),
+        el("td", {},
+          el("div", { class: "meter-cell" },
+            el("div", { class: "meter", role: "img", "aria-label": `${percent}% got full marks` },
+              el("div", { class: "meter-fill", style: `width: ${percent}%` })),
+            el("span", { class: "meter-label", dataset: { col: "full-marks" } }, `${percent}% · ${stat.fullMarks} of ${count}`),
+          ),
+        ),
+      );
+    }),
+  );
+}

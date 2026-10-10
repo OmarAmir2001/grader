@@ -15,6 +15,8 @@
   --bad-bg: #fde8e6;
   --info-bg: #e8eefc;
   --flag-row: #fff8e1;
+  --bar: #2557d6; /* validated: dataviz validate_palette.js, light surface */
+  --bar-track: #dde6fb;
   --radius: 10px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -38,6 +40,8 @@
     --bad-bg: #3a1714;
     --info-bg: #1b2a4a;
     --flag-row: #2b2614;
+    --bar: #5b8cf5; /* validated against the dark surface #1a1e23 */
+    --bar-track: #25324d;
   }
 }
 
@@ -254,3 +258,9 @@ dialog::backdrop { background: rgb(0 0 0 / 0.45); }
 }
 .deadline .summary-line:empty { display: none; }
 .late-badge { margin-left: 6px; }
+
+.summary-table td { vertical-align: middle; }
+.meter-cell { display: flex; align-items: center; gap: 12px; min-width: 240px; }
+.meter { flex: 1; max-width: 260px; height: 10px; background: var(--bar-track); border-radius: 0 4px 4px 0; }
+.meter-fill { height: 100%; background: var(--bar); border-radius: 0 4px 4px 0; }
+.meter-label { white-space: nowrap; font-variant-numeric: tabular-nums; }

@@ -31,6 +31,14 @@ test("grades the fixture submissions from a zip and exports the CSV", async ({ p
   await gradeAll(page, TIMEOUT_SECONDS);
   await expectGradesTable(page);
 
+  // Per-question summary over the 5 notebooks that ran (202207 timed out, 202208 is invalid)
+  await expect(page.locator("#summary-note")).toHaveText("Based on 5 notebooks that ran. 2 files that timed out or weren't valid are left out.");
+  const summaryRow = (q) => page.locator(`#summary-table tbody tr[data-question="${q}"]`);
+  await expect(summaryRow("q1").locator('[data-col="average"]')).toHaveText("1.6 / 2");
+  await expect(summaryRow("q1").locator('[data-col="full-marks"]')).toHaveText("80% · 4 of 5");
+  await expect(summaryRow("q3").locator('[data-col="average"]')).toHaveText("0.8 / 1");
+  await expect(summaryRow("q5").locator('[data-col="full-marks"]')).toHaveText("100% · 5 of 5");
+
   // Details view: the crashed cell and the failing hidden test are explained
   await page.locator('#results-table tbody tr[data-file="202206.ipynb"]').click();
   await expect(page.locator("#details-body")).toContainText("KeyError");

@@ -3,7 +3,7 @@ import { DEFAULTS, SETTINGS_LIMITS } from "../config.js";
 import { $, el, formatBytes, formatPoints, plural, show } from "./dom.js";
 import { DriveError, GoogleDrive, isDriveConfigured, parseFolderId } from "./drive.js";
 import { Phase, WorkerPool } from "./pool.js";
-import { ResultsTable, renderDetails } from "./results.js";
+import { ResultsTable, renderDetails, renderQuestionSummary } from "./results.js";
 import { readSubmissionsZip } from "./submissions.js";
 import { CAIRO_TIME_ZONE, LOCAL_TIME_ZONE, deadlineInstant, formatInZone } from "./time.js";
 
@@ -366,6 +366,7 @@ function updateGradeButton() {
 function resetResults() {
   state.rows = [];
   show($("#results"), false);
+  show($("#question-summary"), false);
   show($("#progress"), false);
   showMessage($("#grade-error"), "");
 }
@@ -385,6 +386,7 @@ async function grade() {
   state.rows = state.submissions.map((s) => ({ name: s.name, date: s.date, phase: Phase.WAITING, result: null }));
   applyRowFlags();
   resultsTable.reset(state.summary.questions, state.rows);
+  renderQuestionSummary($("#question-summary"), state.rows, state.summary.questions); // hidden until a result arrives
   show($("#results"));
   show($("#progress"));
   let done = 0;
@@ -396,6 +398,7 @@ async function grade() {
       if (update.phase === Phase.DONE) {
         applyRowFlags(); // a new result can create a duplicate ID with an earlier one
         resultsTable.refreshAll();
+        renderQuestionSummary($("#question-summary"), state.rows, state.summary.questions);
       } else {
         resultsTable.update(index);
       }
