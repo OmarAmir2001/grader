@@ -16,7 +16,8 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1, // each test starts several Pyodide workers; in parallel they compete for CPU and trip the 15 s timeout
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
+  // In CI, "github" turns failures into annotations visible on the run's summary page.
+  reporter: process.env.CI ? [["list"], ["github"]] : "list",
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: "retain-on-failure",
