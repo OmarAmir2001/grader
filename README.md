@@ -4,7 +4,15 @@ A static website (GitHub Pages) that grades Otter-Grader notebook homework **ins
 Python runs in Pyodide Web Workers; student files never leave the instructor's computer.
 Scores match `otter grade` (Otter-Grader 7.0.0) exactly.
 
-> Known limitations and deployment notes are added in milestone M4.
+## Using it
+
+1. **Answer key**: drop the `sectionN-autograder.zip` from `otter assign`. Check the questions and points shown.
+2. **Submissions**: paste the Drive folder link of the form's uploads and click **Load** (or drop the
+   zip from Drive's **Download**). Optionally set the deadline; later uploads are marked **Late**.
+3. **Grade**, then click any row for details, and **Download CSV**.
+
+Rows that need a look are highlighted: ID mismatch, duplicate ID, late, crashed cells, timed out,
+or invalid file. Scores are never changed automatically; you decide.
 
 ## Layout
 
@@ -14,6 +22,8 @@ Scores match `otter grade` (Otter-Grader 7.0.0) exactly.
 | [`frontend/`](frontend/) | The static site: plain HTML/CSS/ES modules, no build step. | `npm` for Playwright tests only |
 | `fixtures.tar.gz.enc` | Test fixtures (real autograder zip with hidden tests, fake submissions, Otter's results), **encrypted**. Decrypts to `fixtures/` (gitignored), shared by both test suites. | `scripts/fixtures.sh` |
 | `index.html` | Redirects the Pages root to `frontend/`. | |
+| `scripts/fixtures.sh` | Encrypts / decrypts the fixtures. | `openssl` |
+| `.github/workflows/test.yml` | Runs both test suites on every push and pull request. | GitHub Actions |
 
 There is no server: "backend" is the grading engine, which the browser fetches from
 `backend/src/grader/grader.py` and runs in a worker.
@@ -24,6 +34,10 @@ There is no server: "backend" is the grading engine, which the browser fetches f
 python3 -m http.server 8000      # from the repo root
 # open http://localhost:8000/frontend/
 ```
+
+The same grader also works offline from a terminal, without a browser:
+`cd backend && uv run python -m grader <autograder.zip> <folder-or-zip> -o grades.csv`
+(see [backend/README.md](backend/README.md)).
 
 ## Tests
 
@@ -40,8 +54,20 @@ scripts/fixtures.sh encrypt                  # after changing anything in fixtur
 ```bash
 cd backend && uv run pytest                  # acceptance test 1: grader.py vs Otter's results
 cd frontend && npm install && npx playwright install --with-deps chromium
-cd frontend && npm run test:e2e              # acceptance test 2: the zip path in a real browser
+cd frontend && npm run test:e2e              # acceptance test 2 + Drive, flags, summary (real Chromium)
 ```
+
+GitHub Actions runs both suites on every push and pull request (`.github/workflows/test.yml`).
+
+## Deploying
+
+Merge a feature branch into `main` through a pull request; GitHub Pages republishes `main`
+within a minute or two (Settings → Pages, see the setup guide below). There is no build step.
+Before the first deploy, add the repository secret **`FIXTURES_PASSWORD`** (Settings → Secrets
+and variables → Actions) so the test workflow can decrypt the fixtures.
+
+When you upgrade Pyodide (`PYODIDE_VERSION` in `frontend/config.js`), run both test suites: they
+prove the browser still gives Otter's exact scores.
 
 ## Google Cloud setup (free, one time)
 
@@ -63,7 +89,8 @@ no server and no client secret.
    - **Authorized JavaScript origins**: add `https://omaramir2001.github.io` and `http://localhost:8000`.
    - Leave **Authorized redirect URIs** empty. Click **Create**.
 5. Copy the **Client ID** (it ends in `.apps.googleusercontent.com`) into `frontend/config.js`:
-   `export const GOOGLE_CLIENT_ID = "....apps.googleusercontent.com";` and push to `main`.
+   `export const GOOGLE_CLIENT_ID = "....apps.googleusercontent.com";`, commit it on a feature
+   branch and merge it into `main` with a pull request.
    The client ID is public by design; there is no secret to protect.
 6. Turn on GitHub Pages: in the repository, **Settings → Pages → Build and deployment →
    Deploy from a branch**, branch `main`, folder `/ (root)`. The site appears at
@@ -71,3 +98,21 @@ no server and no client secret.
 
 The site asks for read-only access to Drive, keeps the sign-in token only in the open tab, and
 never sends it anywhere except Google's own APIs.
+
+## Known limitations
+
+- **Students share one namespace with the tests**, exactly as in Otter. A student who deliberately
+  overwrites `bool`, `pd.read_csv` or similar could fool a test. That is acceptable for
+  beginner homework; the details view shows each test's output if something looks off.
+- **Library versions can differ from Colab.** The browser runs Pyodide's pandas/numpy (pinned
+  in `frontend/config.js`), which may be newer than Colab's. The seeded sampling and the
+  statistics used so far give identical results, and the tests check this against Otter's real
+  scores. Re-check when upgrading Pyodide.
+- **Student code can make network requests** from its worker. It never sees your Google token
+  or other students' files.
+- **Upload times inside a zip are approximate.** The Late flag is exact for the Google Drive path
+  (Drive's upload time); for the zip path it uses the times stored in the zip.
+- **Only browser-runnable assignments.** Assignments that need servers or containers (MLflow,
+  FastAPI, Docker, …) show "can't be graded in the browser"; use the separate project grader.
+- **A stuck notebook costs its time limit.** The browser can't interrupt Python, so an endless
+  loop runs until the per-notebook time limit, then its worker is restarted (~10 s).
