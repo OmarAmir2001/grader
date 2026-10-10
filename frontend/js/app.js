@@ -5,6 +5,7 @@ import { DriveError, GoogleDrive, isDriveConfigured, parseFolderId } from "./dri
 import { Phase, WorkerPool } from "./pool.js";
 import { ResultsTable, renderDetails } from "./results.js";
 import { readSubmissionsZip } from "./submissions.js";
+import { CAIRO_TIME_ZONE, LOCAL_TIME_ZONE, deadlineInstant, formatInZone } from "./time.js";
 
 const SETTINGS_STORAGE_KEY = "notebook-grader-settings";
 
@@ -51,7 +52,9 @@ const state = {
   summary: null, // answer key summary from grader.py
   blocked: false, // the answer key needs packages that can't run in a browser
   submissions: [], // [{name, bytes, size, date}]
-  rows: [], // [{name, phase, result}]
+  skipped: [], // names of files that aren't notebooks
+  rows: [], // [{name, date, phase, result, late, duplicate}]
+  deadline: null, // Date, or null when no deadline is set
   grading: false,
 };
 const resultsTable = new ResultsTable($("#results-table"), { onOpen: openDetails });
@@ -192,6 +195,7 @@ async function loadSubmissions(load) {
     const { notebooks, skipped, warning = "" } = await load((text) => showMessage($("#subs-status"), text));
     state.submissions = notebooks;
     renderSubmissions(skipped);
+    onDeadlineChange(); // refresh the "N files uploaded after it" count
     showMessage($("#subs-warning"), warning);
   } catch (error) {
     if (!(error instanceof DriveError)) console.error(error);
@@ -260,14 +264,61 @@ function setUpDrive() {
   });
 }
 
+// --- Deadline and class-wide flags ----------------------------------------------------------
+
+const isLate = (date) => Boolean(state.deadline && date && date > state.deadline);
+
+/** Same rule as grader.duplicate_ids (used for the CSV): file-name ID, else the notebook's ID. */
+function duplicateIds(rows) {
+  const counts = new Map();
+  for (const { result } of rows) {
+    const id = result?.student_id || result?.notebook_id;
+    if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return new Set([...counts].filter(([, count]) => count > 1).map(([id]) => id));
+}
+
+function applyRowFlags() {
+  const duplicates = duplicateIds(state.rows);
+  for (const row of state.rows) {
+    row.late = isLate(row.date);
+    row.duplicate = duplicates.has(row.result?.student_id || row.result?.notebook_id);
+  }
+}
+
+function onDeadlineChange() {
+  const zone = $("#deadline-zone").value === "local" ? LOCAL_TIME_ZONE : CAIRO_TIME_ZONE;
+  state.deadline = deadlineInstant($("#deadline-date").value, $("#deadline-time").value, zone);
+  const lateCount = state.submissions.filter((s) => isLate(s.date)).length;
+  $("#deadline-summary").textContent = state.deadline
+    ? `Deadline: ${formatInZone(state.deadline, zone)} (${zone === CAIRO_TIME_ZONE ? "Cairo time" : "this computer's time"}).` +
+      (state.submissions.length ? ` ${plural(lateCount, "file")} uploaded after it.` : "")
+    : "";
+  if (state.submissions.length) renderSubmissions(state.skipped);
+  if (state.rows.length) {
+    applyRowFlags();
+    resultsTable.refreshAll();
+  }
+}
+
+function setUpDeadline() {
+  $("#deadline-local-option").textContent = `This computer's time (${LOCAL_TIME_ZONE})`;
+  for (const id of ["#deadline-date", "#deadline-time", "#deadline-zone"]) $(id).addEventListener("change", onDeadlineChange);
+  $("#deadline-clear").addEventListener("click", () => {
+    $("#deadline-date").value = "";
+    onDeadlineChange();
+  });
+}
+
 function renderSubmissions(skipped) {
+  state.skipped = skipped;
   $("#subs-count").textContent = `Found ${plural(state.submissions.length, "notebook")}.`;
   $("#subs-table").tBodies[0].replaceChildren(
     ...state.submissions.map((s) =>
       el("tr", {},
         el("td", { class: "file" }, s.name),
         el("td", { class: "num" }, formatBytes(s.size)),
-        el("td", {}, s.date ? s.date.toLocaleString() : ""),
+        el("td", {}, s.date ? s.date.toLocaleString() : "", isLate(s.date) ? el("span", { class: "badge badge-crashed late-badge" }, "Late") : null),
       ),
     ),
   );
@@ -331,7 +382,8 @@ async function grade() {
   updateGradeButton();
   showMessage($("#grade-error"), "");
   $("#csv-btn").disabled = true;
-  state.rows = state.submissions.map((s) => ({ name: s.name, phase: Phase.WAITING, result: null }));
+  state.rows = state.submissions.map((s) => ({ name: s.name, date: s.date, phase: Phase.WAITING, result: null }));
+  applyRowFlags();
   resultsTable.reset(state.summary.questions, state.rows);
   show($("#results"));
   show($("#progress"));
@@ -341,7 +393,12 @@ async function grade() {
   try {
     await pool.gradeAll(state.submissions, settings.timeoutSeconds * 1000, (index, update) => {
       Object.assign(state.rows[index], update);
-      resultsTable.update(index);
+      if (update.phase === Phase.DONE) {
+        applyRowFlags(); // a new result can create a duplicate ID with an earlier one
+        resultsTable.refreshAll();
+      } else {
+        resultsTable.update(index);
+      }
       if (update.phase === Phase.DONE) setProgress(++done, state.rows.length);
     });
     $("#csv-btn").disabled = false;
@@ -372,7 +429,7 @@ async function downloadCsv() {
   button.disabled = true;
   try {
     const results = state.rows.map((row) => row.result).filter(Boolean);
-    const { filename, text } = await pool.buildCsv(results, [], localTimeIso());
+    const { filename, text } = await pool.buildCsv(results, state.rows.filter((row) => row.late).map((row) => row.name), localTimeIso());
     const blob = new Blob(["﻿", text], { type: "text/csv;charset=utf-8" }); // BOM: Excel shows Arabic names
     const link = el("a", { href: URL.createObjectURL(blob), download: filename });
     link.click();
@@ -390,6 +447,7 @@ bindDropzone($("#key-drop"), $("#key-input"), onAnswerKey);
 bindDropzone($("#subs-drop"), $("#subs-input"), onSubmissionsZip);
 for (const tab of document.querySelectorAll("[role=tab]")) tab.addEventListener("click", () => selectTab(tab.dataset.tab));
 setUpDrive();
+setUpDeadline();
 selectTab(isDriveConfigured() ? "drive" : "zip");
 bindSettings();
 $("#grade-btn").addEventListener("click", grade);

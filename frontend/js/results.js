@@ -14,18 +14,22 @@ const naturalCompare = new Intl.Collator(undefined, { numeric: true, sensitivity
 
 export const rowState = (row) => row.result?.status ?? row.phase;
 
-/** Short labels for anything Omar should look at by hand (besides the status itself). */
+/**
+ * Short labels for anything Omar should look at by hand (besides the status itself).
+ * row.late and row.duplicate are set by the page (they depend on the deadline and on the other files).
+ */
 export function rowFlags(row) {
   const result = row.result;
-  if (!result) return [];
   const flags = [];
-  if (result.id_mismatch) {
+  if (result?.id_mismatch) {
     flags.push(result.notebook_id ? `ID mismatch (notebook: ${result.notebook_id})` : "ID mismatch (no STUDENT_ID in notebook)");
   }
+  if (row.duplicate) flags.push("Duplicate ID");
+  if (row.late) flags.push("Late");
   return flags;
 }
 
-const isFlagged = (row) => Boolean(row.result) && (row.result.status !== Status.OK || rowFlags(row).length > 0);
+const isFlagged = (row) => (Boolean(row.result) && row.result.status !== Status.OK) || rowFlags(row).length > 0;
 
 export class ResultsTable {
   #table;
@@ -60,6 +64,12 @@ export class ResultsTable {
 
   update(index) {
     this.#fillRow(this.#trs[index], this.#rows[index]);
+  }
+
+  /** Redraw every row (flags that depend on other rows or on the deadline changed). */
+  refreshAll() {
+    this.#rows.forEach((row, index) => this.#fillRow(this.#trs[index], row));
+    this.#renderOrder();
   }
 
   #columns() {
@@ -159,6 +169,12 @@ export function renderDetails(container, row, summary) {
     el("p", {}, el("span", { class: `badge badge-${result.status}` }, STATUS_LABELS[result.status]), ` Score: ${formatPoints(result.total)} / ${formatPoints(result.total_possible)}`),
     idLine,
   ];
+  if (row.date) {
+    parts.push(el("p", {}, "Uploaded: ", el("strong", {}, row.date.toLocaleString()), row.late ? el("span", { class: "warning-text" }, " — after the deadline") : null));
+  }
+  if (row.duplicate) {
+    parts.push(el("p", { class: "warning-text" }, "Another file has the same student ID (maybe a resubmission). Both are graded; decide which one counts."));
+  }
   if (result.error) parts.push(el("p", { class: "error" }, result.error));
 
   if (result.cell_errors.length) {

@@ -240,3 +240,17 @@ dialog::backdrop { background: rgb(0 0 0 / 0.45); }
   background: var(--bg);
   color: var(--text);
 }
+
+.deadline { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px 4px; margin: 16px 0 8px; }
+.deadline legend { font-weight: 600; padding: 0 4px; }
+.deadline-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.deadline-row input, .deadline-row select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+}
+.deadline .summary-line:empty { display: none; }
+.late-badge { margin-left: 6px; }

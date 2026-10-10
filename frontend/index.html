@@ -73,6 +73,20 @@
           <span>Drop the submissions zip here, or <u>choose a file</u></span>
         </label>
       </div>
+      <fieldset class="deadline">
+        <legend>Deadline <span class="hint">(optional)</span></legend>
+        <div class="deadline-row">
+          <input type="date" id="deadline-date" class="lock-while-grading" aria-label="Deadline date">
+          <input type="time" id="deadline-time" class="lock-while-grading" value="23:59" aria-label="Deadline time">
+          <select id="deadline-zone" class="lock-while-grading" aria-label="Time zone">
+            <option value="cairo" selected>Cairo time</option>
+            <option value="local" id="deadline-local-option">This computer's time</option>
+          </select>
+          <button type="button" id="deadline-clear" class="lock-while-grading">Clear</button>
+        </div>
+        <p class="hint">Files uploaded after the deadline are marked “Late” but still graded. Google Drive gives the exact upload time; times inside a zip file can be less exact.</p>
+        <p id="deadline-summary" class="summary-line" aria-live="polite"></p>
+      </fieldset>
       <p id="subs-status" class="hint" role="status" hidden></p>
       <p id="subs-error" class="error" role="alert" hidden></p>
       <p id="subs-warning" class="warning" role="alert" hidden></p>
