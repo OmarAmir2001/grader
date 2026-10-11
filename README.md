@@ -19,7 +19,7 @@ or invalid file. Scores are never changed automatically; you decide.
 | Folder | What it is | Tooling |
 |---|---|---|
 | [`backend/`](backend/) | The grading engine: pure Python, runs in CPython **and** in Pyodide. Also a CLI. | `uv`, `pytest` |
-| [`frontend/`](frontend/) | The static site: plain HTML/CSS/ES modules, no build step. | `npm` for Playwright tests only |
+| [`frontend/`](frontend/) | The static site: HTML + ES modules styled with Tailwind's browser build (pinned in `index.html`), no build step. | `npm` for Playwright tests only |
 | `fixtures.tar.gz.enc` | Test fixtures (real autograder zip with hidden tests, fake submissions, Otter's results), **encrypted**. Decrypts to `fixtures/` (gitignored), shared by both test suites. | `scripts/fixtures.sh` |
 | `index.html` | Redirects the Pages root to `frontend/`. | |
 | `scripts/fixtures.sh` | Encrypts / decrypts the fixtures. | `openssl` |

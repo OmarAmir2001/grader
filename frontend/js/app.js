@@ -3,7 +3,7 @@ import { DEFAULTS, SETTINGS_LIMITS } from "../config.js";
 import { $, el, formatBytes, formatPoints, plural, show } from "./dom.js";
 import { DriveError, GoogleDrive, isDriveConfigured, parseFolderId } from "./drive.js";
 import { Phase, WorkerPool } from "./pool.js";
-import { ResultsTable, renderDetails, renderQuestionSummary } from "./results.js";
+import { ResultsTable, renderDetails, renderQuestionSummary, renderStats } from "./results.js";
 import { readSubmissionsZip } from "./submissions.js";
 import { CAIRO_TIME_ZONE, LOCAL_TIME_ZONE, deadlineInstant, formatInZone } from "./time.js";
 
@@ -85,10 +85,25 @@ function bindDropzone(zone, input, onFile) {
   });
 }
 
+const PILL_STYLES = Object.freeze({
+  loading: "bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:ring-indigo-500/30",
+  ready: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30",
+  error: "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/30",
+});
+
 function setPythonStatus(kind, text) {
   const pill = $("#python-status");
-  pill.className = `pill pill-${kind}`;
-  pill.textContent = text;
+  // pill-<kind> is a state hook (the tests wait for pill-ready); the rest is styling.
+  pill.className = `pill pill-${kind} inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${PILL_STYLES[kind]}`;
+  const dot = el("span", { class: `size-2 rounded-full bg-current ${kind === "loading" ? "animate-pulse" : ""}`, "aria-hidden": "true" });
+  pill.replaceChildren(dot, text);
+}
+
+/** The numbered circle of a step turns into a green check once the step is complete. */
+function setStepDone(step, done) {
+  const badge = $(`#step${step}-badge`);
+  badge.dataset.done = String(done);
+  badge.textContent = done ? "✓" : String(step);
 }
 
 // --- Python start-up ------------------------------------------------------------------------
@@ -111,6 +126,7 @@ async function warmPython() {
 async function onAnswerKey(file) {
   showMessage($("#key-error"), "");
   show($("#key-summary"), false);
+  setStepDone(1, false);
   state.summary = null;
   resetResults();
   updateGradeButton();
@@ -139,12 +155,14 @@ async function onAnswerKey(file) {
 function renderKeySummary(summary, failedPackages) {
   $("#key-name").textContent = summary.name;
   $("#key-total").textContent = `${plural(summary.questions.length, "question")}, ${plural(formatPoints(summary.possible), "point")} in total`;
-  $("#key-questions").tBodies[0].replaceChildren(
+  $("#key-questions").replaceChildren(
     ...summary.questions.map((q) =>
-      el("tr", {},
-        el("td", {}, q.name),
-        el("td", { class: "num" }, formatPoints(q.points)),
-        el("td", {}, `${q.cases} (${q.hidden_cases} hidden)`),
+      el("span", {
+        class: "inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700",
+        title: `${q.cases} tests (${q.hidden_cases} hidden)`,
+      },
+        el("span", { class: "font-semibold" }, q.name),
+        el("span", { class: "text-slate-500 dark:text-slate-400" }, plural(formatPoints(q.points), "pt")),
       ),
     ),
   );
@@ -167,6 +185,7 @@ function renderKeySummary(summary, failedPackages) {
   }
   showMessage($("#key-warnings"), warnings.join(" "));
   show($("#key-summary"));
+  setStepDone(1, !state.blocked);
 }
 
 // --- Step 2: submissions --------------------------------------------------------------------
@@ -183,6 +202,7 @@ function clearSubmissions() {
   showMessage($("#subs-error"), "");
   showMessage($("#subs-warning"), "");
   show($("#subs-summary"), false);
+  setStepDone(2, false);
   state.submissions = [];
   resetResults();
   updateGradeButton();
@@ -240,7 +260,7 @@ function onDriveLoad() {
 }
 
 function updateDriveAccount() {
-  $("#drive-account").textContent = drive.signedIn ? "Signed in to Google." : "";
+  $("#drive-account").textContent = drive.signedIn ? "✓ Signed in to Google" : "";
   show($("#drive-signin"), !drive.signedIn);
   show($("#drive-signout"), drive.signedIn);
 }
@@ -316,9 +336,11 @@ function renderSubmissions(skipped) {
   $("#subs-table").tBodies[0].replaceChildren(
     ...state.submissions.map((s) =>
       el("tr", {},
-        el("td", { class: "file" }, s.name),
-        el("td", { class: "num" }, formatBytes(s.size)),
-        el("td", {}, s.date ? s.date.toLocaleString() : "", isLate(s.date) ? el("span", { class: "badge badge-crashed late-badge" }, "Late") : null),
+        el("td", { class: "px-3 py-2 break-all" }, s.name),
+        el("td", { class: "px-3 py-2 text-right tabular-nums text-slate-500 dark:text-slate-400" }, formatBytes(s.size)),
+        el("td", { class: "px-3 py-2 whitespace-nowrap text-slate-500 dark:text-slate-400" },
+          s.date ? s.date.toLocaleString() : "",
+          isLate(s.date) ? el("span", { class: "ml-2 rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-300" }, "Late") : null),
       ),
     ),
   );
@@ -327,6 +349,7 @@ function renderSubmissions(skipped) {
   $("ul", skippedNote).replaceChildren(...skipped.map((name) => el("li", {}, name)));
   show(skippedNote, skipped.length > 0);
   show($("#subs-summary"));
+  setStepDone(2, state.submissions.length > 0);
 }
 
 // --- Step 3: grade --------------------------------------------------------------------------
@@ -365,6 +388,7 @@ function updateGradeButton() {
 
 function resetResults() {
   state.rows = [];
+  setStepDone(3, false);
   show($("#results"), false);
   show($("#question-summary"), false);
   show($("#progress"), false);
@@ -372,45 +396,64 @@ function resetResults() {
 }
 
 function setProgress(done, total) {
+  const percent = total ? Math.round((done / total) * 100) : 0;
   const bar = $("#progress-bar");
-  bar.max = total;
-  bar.value = done;
+  bar.setAttribute("aria-valuemax", String(total));
+  bar.setAttribute("aria-valuenow", String(done));
+  $("#progress-fill").style.width = `${percent}%`;
   $("#progress-text").textContent = `${done} of ${total} done`;
+  $("#progress-percent").textContent = `${percent}%`;
+}
+
+/** The CSV can be downloaded as soon as one file is done; while grading it holds the files finished so far. */
+function updateCsvButton() {
+  const finished = state.rows.filter((row) => row.result).length;
+  $("#csv-btn").disabled = finished === 0;
+  $("#csv-label").textContent = state.grading && finished ? `Download CSV (${finished} so far)` : "Download CSV";
 }
 
 async function grade() {
   state.grading = true;
   updateGradeButton();
   showMessage($("#grade-error"), "");
-  $("#csv-btn").disabled = true;
-  state.rows = state.submissions.map((s) => ({ name: s.name, date: s.date, phase: Phase.WAITING, result: null }));
+  const limitMs = settings.timeoutSeconds * 1000;
+  state.rows = state.submissions.map((s) => ({ name: s.name, date: s.date, phase: Phase.WAITING, result: null, limitMs }));
   applyRowFlags();
+  updateCsvButton();
   resultsTable.reset(state.summary.questions, state.rows);
+  renderStats($("#stats"), state.rows, state.summary.possible);
   renderQuestionSummary($("#question-summary"), state.rows, state.summary.questions); // hidden until a result arrives
   show($("#results"));
   show($("#progress"));
   let done = 0;
   setProgress(done, state.rows.length);
   pool.resize(settings.workers);
+  const ticker = setInterval(() => resultsTable.tickRunning(), 1000); // the "0:45 / 2:00" countdown
   try {
-    await pool.gradeAll(state.submissions, settings.timeoutSeconds * 1000, (index, update) => {
-      Object.assign(state.rows[index], update);
-      if (update.phase === Phase.DONE) {
-        applyRowFlags(); // a new result can create a duplicate ID with an earlier one
-        resultsTable.refreshAll();
-        renderQuestionSummary($("#question-summary"), state.rows, state.summary.questions);
-      } else {
+    await pool.gradeAll(state.submissions, limitMs, (index, update) => {
+      const row = state.rows[index];
+      Object.assign(row, update);
+      if (update.phase === Phase.RUNNING) {
+        row.startedAt = Date.now();
         resultsTable.update(index);
+        return;
       }
-      if (update.phase === Phase.DONE) setProgress(++done, state.rows.length);
+      applyRowFlags(); // a new result can create a duplicate ID with an earlier one
+      resultsTable.refreshAll();
+      renderStats($("#stats"), state.rows, state.summary.possible);
+      renderQuestionSummary($("#question-summary"), state.rows, state.summary.questions);
+      setProgress(++done, state.rows.length);
+      updateCsvButton();
     });
-    $("#csv-btn").disabled = false;
+    setStepDone(3, true);
   } catch (error) {
     console.error(error);
     showMessage($("#grade-error"), `Grading stopped: ${error.message}`);
   } finally {
+    clearInterval(ticker);
     state.grading = false;
     updateGradeButton();
+    updateCsvButton();
   }
 }
 
@@ -433,14 +476,14 @@ async function downloadCsv() {
   try {
     const results = state.rows.map((row) => row.result).filter(Boolean);
     const { filename, text } = await pool.buildCsv(results, state.rows.filter((row) => row.late).map((row) => row.name), localTimeIso());
-    const blob = new Blob(["﻿", text], { type: "text/csv;charset=utf-8" }); // BOM: Excel shows Arabic names
+    const blob = new Blob(["\uFEFF", text], { type: "text/csv;charset=utf-8" }); // BOM: Excel shows Arabic names
     const link = el("a", { href: URL.createObjectURL(blob), download: filename });
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
   } catch (error) {
     showMessage($("#grade-error"), `Couldn't build the CSV: ${error.message}`);
   } finally {
-    button.disabled = false;
+    updateCsvButton();
   }
 }
 
