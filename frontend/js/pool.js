@@ -15,6 +15,7 @@ class GraderWorker {
 
   constructor() {
     this.jobsDone = 0;
+    this.busy = false; // grading a notebook right now (possibly stuck until its timer fires)
     this.autograderVersion = null;
     this.#worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
     this.#worker.onmessage = ({ data }) => this.#onMessage(data);
@@ -60,9 +61,11 @@ class GraderWorker {
   /** Resolves with the result dict; on timeout or crash, resolves with a zero-score result instead. */
   grade(filename, bytes, timeoutMs, summary) {
     let fallback = null;
+    this.busy = true;
     return new Promise((resolve) => {
       const finish = (result, { recycle = false } = {}) => {
         clearTimeout(timer);
+        this.busy = false;
         if (recycle) this.terminate();
         resolve({ result, recycle });
       };
@@ -136,6 +139,7 @@ function blankResult(filename, summary) {
 
 export class WorkerPool {
   #slots = [];
+  #helper = null; // only for the CSV when every grading worker is busy
   #autograder = null; // { bytes, version, summary }
   #recycleAfter;
 
@@ -207,14 +211,28 @@ export class WorkerPool {
     await Promise.all(Array.from({ length: slots }, (_, slot) => runSlot(slot)));
   }
 
+  /** Builds the CSV on an idle worker, so it never waits behind a notebook that is still running. */
   async buildCsv(results, lateFiles, localTime) {
-    const slot = this.#slots.findIndex(Boolean);
-    const worker = await this.#readyWorker(slot === -1 ? 0 : slot);
+    const idle = this.#slots.findIndex((worker) => worker && !worker.busy);
+    let worker;
+    if (idle !== -1) {
+      worker = await this.#readyWorker(idle);
+    } else if (!this.#slots.some(Boolean)) {
+      worker = await this.#readyWorker(0);
+    } else {
+      this.#helper ??= new GraderWorker();
+      worker = this.#helper;
+      if (worker.autograderVersion !== this.#autograder.version) {
+        const loaded = await worker.loadAutograder(this.#autograder.bytes, this.#autograder.version);
+        if (!loaded.ok) throw new Error(loaded.error);
+      }
+    }
     return worker.buildCsv(results, lateFiles, localTime);
   }
 
   dispose() {
-    for (const worker of this.#slots) worker?.terminate();
+    for (const worker of [...this.#slots, this.#helper]) worker?.terminate();
     this.#slots = [];
+    this.#helper = null;
   }
 }

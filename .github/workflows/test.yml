@@ -1,8 +1,9 @@
-name: Tests
+name: Test and deploy
 
 on:
   push:
   pull_request:
+  workflow_dispatch: # "Run workflow" button in the Actions tab
 
 permissions:
   contents: read
@@ -57,3 +58,36 @@ jobs:
 
       # No report/trace upload on purpose: traces and screenshots show hidden-test code, and
       # artifacts of a public repo are downloadable by anyone. Re-run failures locally instead.
+
+  # Publishes the site only from main, and only after both test jobs passed.
+  # Requires Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      # Fresh checkout, fixtures never decrypted here: only the site's own files are published.
+      - name: Collect the site files
+        run: scripts/collect-site.sh _site
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - name: Publish
+        id: deployment
+        uses: actions/deploy-pages@v5
