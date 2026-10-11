@@ -26,3 +26,6 @@ playwright-report/
 /fixtures/
 /notebook-grader-handoff/
 *.zip
+
+# Planning notes for Claude (never committed)
+/assignments-pipeline-handoff/
